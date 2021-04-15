@@ -23,9 +23,17 @@ namespace BlazorSignalRStreaming.Server
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
-
             services.AddControllersWithViews();
             services.AddRazorPages();
+
+            #region SignalR
+            services.AddSignalR();
+
+            services.AddResponseCompression(opts => {
+                opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+                    new[] { "application/octet-stream" });
+            });
+            #endregion
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -52,8 +60,8 @@ namespace BlazorSignalRStreaming.Server
                 endpoints.MapControllers();
                 endpoints.MapFallbackToFile("index.html");
                 // signalr
-                //endpoints.MapHub<StreamingOut>("/StreamingOut");
-                //endpoints.MapHub<StreamingIn>("/StreamingIn");
+                endpoints.MapHub<StreamingOut>("/StreamingOut");
+                endpoints.MapHub<StreamingIn>("/StreamingIn");
             });
         }
     }
