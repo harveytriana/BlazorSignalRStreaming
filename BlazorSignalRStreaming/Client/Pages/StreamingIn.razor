@@ -1,12 +1,66 @@
 ﻿@page "/streaming-in"
 
-<h1>SignalR Streaming In</h1>
-<h3><i class="oi oi-cloud-download"></i> Server To Client</h3>
+<h3><i class="oi oi-cloud-download"></i> SignalR Streaming In</h3>
 <hr />
-<p>
+<h5>
+    The client receives a stream of the Server.
+</h5>
+<br />
+<div>
+    <button class="btn btn-primary"
+            style="width:130px;"
+            disabled="@(state=="CANCEL")"
+            @onclick="Start">
+        Start
+    </button>
+    <button class="btn btn-danger"
+            style="width:130px;"
+            disabled="@(state=="START")"
+            @onclick="Cancel">
+        Cancel
+    </button>
+</div>
+<hr />
+<ul>
+    @foreach (var i in ls) {
+        <li>@i</li>
+    }
+</ul>
 
-</p>
-<p>
-    Scenarios where fragments of data arrive over time. When streaming, each fragment is sent to the client or server as soon as it becomes available, rather than waiting for all of the data to become available.
-</p>
+@code{
+    string state;
+    bool disabled;
+    bool cancel;
+    List<string> ls = new();
 
+    const int N = 8;
+
+    async Task Start()
+    {
+        state = "CANCEL";
+        ls.Clear();
+        cancel = false;
+        for (int i = 1; i <= N; i++) {
+            ls.Add($"Fragment {i} of {N}");
+            await Task.Delay(500);
+            StateHasChanged();
+            if (cancel) {
+                break;
+            }
+        }
+        // end task
+        state = "START";
+    }
+
+    async Task Cancel()
+    {
+        cancel = true;
+        await Task.Delay(1000);
+        state = "START";
+    }
+
+    protected override void OnInitialized()
+    {
+        state = "START";
+    }
+}
