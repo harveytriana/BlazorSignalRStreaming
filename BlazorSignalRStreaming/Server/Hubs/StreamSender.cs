@@ -22,9 +22,6 @@ namespace BlazorSignalRStreaming.Server.Hubs
             _logger = logger;
         }
 
-        // hub method becomes a Streaming hub method when it returns IAsyncEnumerable<T>, ChannelReader<T>
-        // or async versions
-
         // First apprach. Return an IAsyncEnumerable<T> 
         public async IAsyncEnumerable<int> CounterEnumerable(
             int count,

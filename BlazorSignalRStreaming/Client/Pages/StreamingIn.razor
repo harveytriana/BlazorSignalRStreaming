@@ -29,33 +29,31 @@
     }
 </ul>
 <p>
-    @prompt
+    @status
 </p>
 @code{
-    string state;
-    bool disabled;
+    string state = "START";
     bool cancel;
-    string prompt;
+    string status;
     List<string> ls = new();
-
-    const int N = 16;
 
     StreamingHandler _streamingHandler;
 
     async Task Start()
     {
-        ls.Clear();
         state = "CANCEL";
+        status = "";
         cancel = false;
-        prompt = "";
+        ls.Clear();
+
+        _streamingHandler = new StreamingHandler();
 
         var serviceUrl = NavigationManager.ToAbsoluteUri("/StreamSender").ToString();
-        _streamingHandler = new StreamingHandler(serviceUrl);
-        await _streamingHandler.ConnectAsync();
-        _streamingHandler.Prompt += (s) => Echo(s);
+        await _streamingHandler.ConnectAsync(serviceUrl);
+        _streamingHandler.Prompt += (s) => Prompt(s);
         await _streamingHandler.ReadStream();
-      
-        if (!cancel) prompt = "End stream.";
+
+        if (!cancel) status = "End stream.";
         // end task
         state = "START";
     }
@@ -64,21 +62,15 @@
     {
         cancel = true;
         await Task.Delay(300);
-        prompt = "Canceled.";
+        status = "Canceled.";
     }
 
-    protected override void OnInitialized()
+    void Prompt(string message)
     {
-        state = "START";
+        ls.Add(message);
 
-    }
-
-    void Echo(string text)
-    {
-        ls.Add(text);
-
-        if (text == "COMPLETED") {
-            if (!cancel) prompt = "End stream.";
+        if (message == "COMPLETED") {
+            if (!cancel) status = "End stream.";
             // end task
             state = "START";
         }

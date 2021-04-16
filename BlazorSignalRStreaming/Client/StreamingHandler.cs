@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.SignalR.Client;
+﻿// ===============================
+// Blazor Spread
+// ===============================
+using Microsoft.AspNetCore.SignalR.Client;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -9,26 +12,20 @@ namespace BlazorSignalRStreaming.Client
 {
     class StreamingHandler : IDisposable
     {
-        readonly string _hubUrl;
-
         HubConnection _connection;
 
         readonly CancellationTokenSource _cts = new();
+
         bool _connected;
 
-        public delegate void PromptEventHandler(string text);
+        public delegate void PromptEventHandler(string message);
         public event PromptEventHandler Prompt;
 
-        public StreamingHandler(string hubUrl)
-        {
-            _hubUrl = hubUrl;
-        }
-
-        public async Task<bool> ConnectAsync()
+        public async Task<bool> ConnectAsync(string hubUrl)
         {
             try {
                 _connection = new HubConnectionBuilder()
-                    .WithUrl(_hubUrl)
+                    .WithUrl(hubUrl)
                     .Build();
 
                 await _connection.StartAsync(_cts.Token);
@@ -104,7 +101,6 @@ namespace BlazorSignalRStreaming.Client
         #endregion
 
         #region Client to Server
-        // Basic sample of MS
         public async Task SendStreamBasicDemotration()
         {
             if (!_connected) {
@@ -146,7 +142,6 @@ namespace BlazorSignalRStreaming.Client
         public async Task SendStreamEnumerable()
         {
             Prompt?.Invoke("SendStreamEnumerable");
-
             await _connection.SendAsync("UploadStreamEnumerable", ClientStreamData());
         }
 
@@ -165,9 +160,6 @@ namespace BlazorSignalRStreaming.Client
         public void Dispose()
         {
             if (_connected) {
-                Prompt?.Invoke("Unsubscribed");
-                //_h.InvokeAsync("Unsubscribe", _ItemId).Wait();
-
                 _connection.StopAsync();
                 _connection.DisposeAsync();
             }
