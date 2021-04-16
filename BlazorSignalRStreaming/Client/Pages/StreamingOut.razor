@@ -1,4 +1,6 @@
 ﻿@page "/streaming-out"
+@inject NavigationManager NavigationManager
+@implements IAsyncDisposable
 
 <h3><i class="oi oi-cloud-upload"></i> SignalR Streaming Out</h3>
 <hr />
@@ -29,6 +31,7 @@
 <p>
     @prompt
 </p>
+
 @code{
     string state;
     bool disabled;
@@ -38,20 +41,27 @@
 
     const int N = 16;
 
+    StreamingHandler _streamingHandler;
+
     async Task Start()
     {
         ls.Clear();
         state = "CANCEL";
         cancel = false;
         prompt = "";
-        for (int i = 1; i <= N; i++) {
-            ls.Add($"Sending fragment {i} of {N}");
-            await Task.Delay(500);
-            StateHasChanged();
-            if (cancel) {
-                break;
-            }
-        }
+
+        var serviceUrl = NavigationManager.ToAbsoluteUri("/StreamSender").ToString();
+        _streamingHandler = new StreamingHandler(serviceUrl);
+        await _streamingHandler.ConnectAsync();
+        _streamingHandler.Prompt += (s) => Echo(s);
+
+        // TWO APPROACHS
+        // await _streamingHandler.SendStreamChannel();
+        await _streamingHandler.SendStreamEnumerable();
+
+        // another sample
+        // await _streamingClient.SendStreamBasicDemotration();
+
         if (!cancel) prompt = "End stream.";
         // end task
         state = "START";
@@ -67,5 +77,27 @@
     protected override void OnInitialized()
     {
         state = "START";
+
+    }
+
+    void Echo(string text)
+    {
+        ls.Add(text);
+
+        if (text == "COMPLETED") {
+            if (!cancel) prompt = "End stream.";
+            // end task
+            state = "START";
+        }
+
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_streamingHandler != null) {
+            _streamingHandler.Dispose();
+            await Task.Delay(300);
+        }
     }
 }

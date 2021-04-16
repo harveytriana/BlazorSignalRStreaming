@@ -143,7 +143,6 @@ namespace BlazorSignalRStreaming.Client
             Prompt?.Invoke("Completed");
         }
 
-        // C# 8 >=
         public async Task SendStreamEnumerable()
         {
             Prompt?.Invoke("SendStreamEnumerable");

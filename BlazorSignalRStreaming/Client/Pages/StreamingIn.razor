@@ -54,14 +54,7 @@
         await _streamingHandler.ConnectAsync();
         _streamingHandler.Prompt += (s) => Echo(s);
         await _streamingHandler.ReadStream();
-        //for (int i = 1; i <= N; i++) {
-        //    ls.Add($"Receiving fragment {i} of {N}");
-        //    await Task.Delay(500);
-        //    StateHasChanged();
-        //    if (cancel) {
-        //        break;
-        //    }
-        //}
+      
         if (!cancel) prompt = "End stream.";
         // end task
         state = "START";
