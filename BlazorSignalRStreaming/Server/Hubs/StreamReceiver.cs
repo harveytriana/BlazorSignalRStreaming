@@ -1,6 +1,7 @@
 ﻿// ===============================
 // Blazor Spread
 // ===============================
+using System;
 using System.Collections.Generic;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -27,6 +28,7 @@ namespace BlazorSignalRStreaming.Server.Hubs
             await foreach (var item in stream) {
                 // do something with the stream item
                 _logger.LogInformation($"From client: {item}", true);
+                //Console.WriteLine($"From client: {item}");
             }
         }
 

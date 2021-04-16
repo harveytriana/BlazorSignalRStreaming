@@ -1,4 +1,6 @@
-﻿@page "/streaming-out"
+﻿@using Microsoft.AspNetCore.SignalR.Client
+@using System.Threading
+@page "/streaming-out"
 @inject NavigationManager NavigationManager
 @implements IAsyncDisposable
 
@@ -29,22 +31,85 @@
     }
 </ul>
 <p>
-    @prompt
+    @status
 </p>
 
 @code{
-    string state = "START";
-    bool disabled;
+    HubConnection connection;
+    bool connected;
     bool cancel;
-    string prompt;
+    string state = "START";
+    string status;
     List<string> ls = new();
 
-    void Start() { }
+    async Task Start()
+    {
+        state = "CANCEL";
+        status = "";
+        cancel = false;
+        ls.Clear();
 
-    void Cancel() { }
+        await ConnectAsync();
+        if (connected) {
+            await connection.SendAsync("UploadStreamEnumerable", ClientStreamData());
+        }
+    }
+
+    async IAsyncEnumerable<string> ClientStreamData()
+    {
+        cancel = false;
+        for (var i = 0; i < 8; i++) {
+            if (cancel) {
+                break;
+            }
+            var s = $"Some data {i}";
+            ls.Add($"Sending -> {s}");
+            await Task.Delay(500);
+
+            // send to server
+            yield return s;
+
+            StateHasChanged();
+        }
+        status = cancel ? "Canceled" : "Completed";
+        state = "START";
+        StateHasChanged();
+    }
+
+    void Cancel()
+    {
+        cancel = true;
+    }
+
+    async Task ConnectAsync()
+    {
+        if (connected) {
+            return;
+        }
+
+        var hubUrl = NavigationManager.ToAbsoluteUri("/StreamReceiver").ToString();
+        try {
+            connection = new HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .Build();
+
+            await connection.StartAsync();
+
+            connected = true;
+        }
+        catch (Exception exception) {
+            status = $"Exception: {exception.Message}";
+            connected = false;
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {
-        await Task.Delay(200);
+        if (connected) {
+            await connection.StopAsync();
+            await connection.DisposeAsync();
+            await Task.Delay(300);
+            connected = false;
+        }
     }
 }

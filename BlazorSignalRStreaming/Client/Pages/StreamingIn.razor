@@ -38,7 +38,6 @@
     HubConnection connection;
     CancellationTokenSource cts;
     bool connected;
-    bool cancel;
     string state = "START";
     string status;
     List<string> ls = new();
@@ -47,7 +46,6 @@
     {
         state = "CANCEL";
         status = "";
-        cancel = false;
         ls.Clear();
 
         await ConnectAsync();
