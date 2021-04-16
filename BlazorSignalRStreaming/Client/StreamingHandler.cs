@@ -70,7 +70,7 @@ namespace BlazorSignalRStreaming.Client
         // StreamAsync<T>
         // valid for C# 8 -> .NET Core 3.0+
         // testing in console app ... new StreamingTest().StreamingAsync().Wait();
-        public async Task ReadStream()
+        public async Task StartDownlodStream()
         {
             // The correct syntax is:
             await foreach (var count in _connection.StreamAsync<int>("CounterEnumerable", 12, 333, _cts.Token)) {
@@ -156,6 +156,12 @@ namespace BlazorSignalRStreaming.Client
             Prompt?.Invoke("Completed");
         }
         #endregion
+
+        public void Cancel()
+        {
+            _cts.Cancel();
+            Prompt?.Invoke("CANCEL");
+        }
 
         public void Dispose()
         {

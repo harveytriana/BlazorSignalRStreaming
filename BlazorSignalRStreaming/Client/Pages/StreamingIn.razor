@@ -31,6 +31,7 @@
 <p>
     @status
 </p>
+
 @code{
     string state = "START";
     bool cancel;
@@ -51,30 +52,32 @@
         var serviceUrl = NavigationManager.ToAbsoluteUri("/StreamSender").ToString();
         await _streamingHandler.ConnectAsync(serviceUrl);
         _streamingHandler.Prompt += (s) => Prompt(s);
-        await _streamingHandler.ReadStream();
+        await _streamingHandler.StartDownlodStream();
 
         if (!cancel) status = "End stream.";
+
         // end task
         state = "START";
     }
 
-    async Task Cancel()
+    void Cancel()
     {
-        cancel = true;
-        await Task.Delay(300);
-        status = "Canceled.";
+        _streamingHandler.Cancel();
     }
 
     void Prompt(string message)
     {
-        ls.Add(message);
-
         if (message == "COMPLETED") {
-            if (!cancel) status = "End stream.";
-            // end task
+            status = "Completed.";
             state = "START";
         }
-
+        else if (message == "CANCEL") {
+            status = "Canceled.";
+            state = "START";
+        }
+        else {
+            ls.Add(message);
+        }
         StateHasChanged();
     }
 
