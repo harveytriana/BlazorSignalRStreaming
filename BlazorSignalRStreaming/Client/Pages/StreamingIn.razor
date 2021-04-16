@@ -1,6 +1,6 @@
 ﻿@using Microsoft.AspNetCore.SignalR.Client
 @using System.Threading
-@page "/streaming-in1"
+@page "/streaming-in"
 @inject NavigationManager NavigationManager
 @implements IAsyncDisposable
 
@@ -35,15 +35,13 @@
 </p>
 
 @code{
-    string state = "START";
+    HubConnection connection;
+    CancellationTokenSource cts;
+    bool connected;
     bool cancel;
+    string state = "START";
     string status;
     List<string> ls = new();
-
-    HubConnection _connection;
-    CancellationTokenSource _cts;
-
-    bool _connected;
 
     async Task Start()
     {
@@ -53,7 +51,7 @@
         ls.Clear();
 
         await ConnectAsync();
-        if (_connected) {
+        if (connected) {
             await StartDownlodStream();
         }
     }
@@ -61,7 +59,7 @@
     public async Task StartDownlodStream()
     {
         // The correct syntax is:
-        await foreach (var count in _connection.StreamAsync<int>("CounterEnumerable", 12, 333, _cts.Token)) {
+        await foreach (var count in connection.StreamAsync<int>("CounterEnumerable", 12, 333, cts.Token)) {
             ls.Add($"Received {count}");
             StateHasChanged();
         }
@@ -72,63 +70,40 @@
 
     async Task Cancel()
     {
-        try {
-            _cts.Cancel();
-            status = "Canceled.";
-            state = "START";
-            await DisposeAsync();
-        }
-        catch
-        {
-
-        }
-    }
-
-    void Prompt(string message)
-    {
-        if (message == "COMPLETED") {
-            status = "Completed.";
-            state = "START";
-        }
-        else if (message == "CANCEL") {
-            status = "Canceled.";
-            state = "START";
-        }
-        else {
-            ls.Add(message);
-        }
-        StateHasChanged();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_connected) {
-            await _connection.StopAsync();
-            await _connection.DisposeAsync();
-            await Task.Delay(300);
-            _connected = false;
-        }
+        cts.Cancel();
+        status = "Canceled.";
+        state = "START";
+        await DisposeAsync();
     }
 
     async Task ConnectAsync()
     {
-        _connected = false;
+        connected = false;
 
         var hubUrl = NavigationManager.ToAbsoluteUri("/StreamSender").ToString();
         try {
-            _connection = new HubConnectionBuilder()
+            connection = new HubConnectionBuilder()
                 .WithUrl(hubUrl)
                 .Build();
 
-            _cts = new CancellationTokenSource();
+            cts = new CancellationTokenSource();
 
-            await _connection.StartAsync(_cts.Token);
+            await connection.StartAsync(cts.Token);
 
-            _connected = true;
+            connected = true;
         }
         catch (Exception exception) {
             status = $"Exception: {exception.Message}";
-            _connected = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (connected) {
+            await connection.StopAsync();
+            await connection.DisposeAsync();
+            await Task.Delay(300);
+            connected = false;
         }
     }
 }
