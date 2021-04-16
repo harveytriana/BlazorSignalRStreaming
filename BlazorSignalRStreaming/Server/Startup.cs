@@ -60,8 +60,8 @@ namespace BlazorSignalRStreaming.Server
                 endpoints.MapControllers();
                 endpoints.MapFallbackToFile("index.html");
                 // signalr
-                endpoints.MapHub<StreamingOut>("/StreamingOut");
-                endpoints.MapHub<StreamingIn>("/StreamingIn");
+                endpoints.MapHub<StreamReceiver>("/StreamReceiver");
+                endpoints.MapHub<StreamSender>("/StreamSender");
             });
         }
     }

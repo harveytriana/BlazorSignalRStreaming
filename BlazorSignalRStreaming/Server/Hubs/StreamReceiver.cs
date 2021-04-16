@@ -10,18 +10,27 @@ using Microsoft.Extensions.Logging;
 namespace BlazorSignalRStreaming.Server.Hubs
 {
     // CLIENT-TO-SERVER STREAMING
-    public class StreamingOut : Hub
+    public class StreamReceiver : Hub
     {
-        private readonly ILogger<StreamingOut> _logger;
+        private readonly ILogger<StreamReceiver> _logger;
 
-        public StreamingOut(ILogger<StreamingOut> logger)
+        public StreamReceiver(ILogger<StreamReceiver> logger)
         {
             _logger = logger;
         }
 
-        // The client receiving Streams on the Server
+        // First apporach. IAsyncEnumerable<T>
+        public async Task UploadStreamEnumerable(IAsyncEnumerable<string> stream)
+        {
+            _logger.LogInformation($"UploadStreamEnumerable(IAsyncEnumerable stream: {stream})", true);
 
-        // first approach, ChannelReader<T>
+            await foreach (var item in stream) {
+                // do something with the stream item
+                _logger.LogInformation($"From client: {item}", true);
+            }
+        }
+
+        // Second approach, ChannelReader<T>
         public async Task UploadStreamChannel(ChannelReader<string> stream)
         {
             _logger.LogInformation($"Run UploadStreamChannel(ChannelReader stream: {stream})", true);
@@ -31,18 +40,6 @@ namespace BlazorSignalRStreaming.Server.Hubs
                     // do something with the stream item
                     _logger.LogInformation($"From client: {item}", true);
                 }
-            }
-        }
-
-        // Second apporach. IAsyncEnumerable<T>
-        //! requires C# 8.0 or later.
-        public async Task UploadStreamEnumerable(IAsyncEnumerable<string> stream)
-        {
-            _logger.LogInformation($"UploadStreamEnumerable(IAsyncEnumerable stream: {stream})", true);
-
-            await foreach (var item in stream) {
-                // do something with the stream item
-                _logger.LogInformation($"From client: {item}", true);
             }
         }
 

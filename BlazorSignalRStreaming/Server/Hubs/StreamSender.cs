@@ -13,23 +13,41 @@ using Microsoft.Extensions.Logging;
 namespace BlazorSignalRStreaming.Server.Hubs
 {
     // SERVER-TO-CLIENT STREAMING
-    public class StreamingIn : Hub
+    public class StreamSender : Hub
     {
-        private readonly ILogger<StreamingIn> _logger;
+        private readonly ILogger<StreamSender> _logger;
 
-        public StreamingIn(ILogger<StreamingIn> logger)
+        public StreamSender(ILogger<StreamSender> logger)
         {
             _logger = logger;
         }
 
         // hub method becomes a Streaming hub method when it returns IAsyncEnumerable<T>, ChannelReader<T>
         // or async versions
-        // first approach, ChannelReader<T>
-        //
-        // NOTE
-        // 2020 - can? public async Task<ChannelReader<int>> CounterChannel( 
-        // NOT (Exception thrown: System.Reflection.TargetInvocationException)
-        //
+
+        // First apprach. Return an IAsyncEnumerable<T> 
+        public async IAsyncEnumerable<int> CounterEnumerable(
+            int count,
+            int delay,
+            [EnumeratorCancellation]
+            CancellationToken cancellationToken)
+        {
+            _logger.LogInformation($"Run IAsyncEnumerable<int> CounterEnumerable(count: {count}, delay: {delay})");
+
+            for (int i = 0; i < count; i++) {
+                // Check the cancellation token regularly so that the server will stop
+                // producing items if the client disconnects.
+                cancellationToken.ThrowIfCancellationRequested();
+
+                yield return i; // T instance;
+
+                // Use the cancellationToken in other APIs that accept cancellation
+                // tokens so the cancellation can flow down to them.
+                await Task.Delay(delay, cancellationToken);
+            }
+        }
+
+        // Second apprach. Return an IAsyncEnumerable<T> 
         public ChannelReader<int> CounterChannel(
                    int count,
                    int delay,
@@ -68,30 +86,6 @@ namespace BlazorSignalRStreaming.Server.Hubs
                 }
             }, cancellationToken);
             return channel.Reader;
-        }
-
-        // Second apprach. IAsyncEnumerable<T> ... Server Application using Async Streams
-        //! requires C# 8.0 or later.
-        public async IAsyncEnumerable<int> CounterEnumerable(
-            int count,
-            int delay,
-            [EnumeratorCancellation]
-            CancellationToken cancellationToken)
-        {
-            _logger.LogInformation($"Run IAsyncEnumerable<int> CounterEnumerable(count: {count}, delay: {delay})");
-
-            for (int i = 0; i < count; i++) {
-                // 
-                // Check the cancellation token regularly so that the server will stop
-                // producing items if the client disconnects.
-                cancellationToken.ThrowIfCancellationRequested();
-
-                yield return i; // T instance;
-
-                // Use the cancellationToken in other APIs that accept cancellation
-                // tokens so the cancellation can flow down to them.
-                await Task.Delay(delay, cancellationToken);
-            }
         }
     }
 }
