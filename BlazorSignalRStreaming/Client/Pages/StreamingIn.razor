@@ -1,4 +1,6 @@
-﻿@page "/streaming-in"
+﻿@using Microsoft.AspNetCore.SignalR.Client
+@using System.Threading
+@page "/streaming-in1"
 @inject NavigationManager NavigationManager
 @implements IAsyncDisposable
 
@@ -38,7 +40,10 @@
     string status;
     List<string> ls = new();
 
-    StreamingHandler _streamingHandler;
+    HubConnection _connection;
+    CancellationTokenSource _cts;
+
+    bool _connected;
 
     async Task Start()
     {
@@ -47,22 +52,36 @@
         cancel = false;
         ls.Clear();
 
-        _streamingHandler = new StreamingHandler();
-
-        var serviceUrl = NavigationManager.ToAbsoluteUri("/StreamSender").ToString();
-        await _streamingHandler.ConnectAsync(serviceUrl);
-        _streamingHandler.Prompt += (s) => Prompt(s);
-        await _streamingHandler.StartDownlodStream();
-
-        if (!cancel) status = "End stream.";
-
-        // end task
-        state = "START";
+        await ConnectAsync();
+        if (_connected) {
+            await StartDownlodStream();
+        }
     }
 
-    void Cancel()
+    public async Task StartDownlodStream()
     {
-        _streamingHandler.Cancel();
+        // The correct syntax is:
+        await foreach (var count in _connection.StreamAsync<int>("CounterEnumerable", 12, 333, _cts.Token)) {
+            ls.Add($"Received {count}");
+            StateHasChanged();
+        }
+        status = "Completed";
+        state = "START";
+        await DisposeAsync();
+    }
+
+    async Task Cancel()
+    {
+        try {
+            _cts.Cancel();
+            status = "Canceled.";
+            state = "START";
+            await DisposeAsync();
+        }
+        catch
+        {
+
+        }
     }
 
     void Prompt(string message)
@@ -83,9 +102,33 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (_streamingHandler != null) {
-            _streamingHandler.Dispose();
+        if (_connected) {
+            await _connection.StopAsync();
+            await _connection.DisposeAsync();
             await Task.Delay(300);
+            _connected = false;
+        }
+    }
+
+    async Task ConnectAsync()
+    {
+        _connected = false;
+
+        var hubUrl = NavigationManager.ToAbsoluteUri("/StreamSender").ToString();
+        try {
+            _connection = new HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .Build();
+
+            _cts = new CancellationTokenSource();
+
+            await _connection.StartAsync(_cts.Token);
+
+            _connected = true;
+        }
+        catch (Exception exception) {
+            status = $"Exception: {exception.Message}";
+            _connected = false;
         }
     }
 }
