@@ -1,5 +1,5 @@
-﻿@using Microsoft.AspNetCore.SignalR.Client
-@using System.Threading
+﻿@using BlazorSignalRStreaming.Shared
+@using Microsoft.AspNetCore.SignalR.Client
 @page "/streaming-out"
 @inject NavigationManager NavigationManager
 @implements IAsyncDisposable
@@ -25,7 +25,7 @@
     </button>
 </div>
 <hr />
-<ul>
+<ul style="font-family:Consolas">
     @foreach (var i in ls) {
         <li>@i</li>
     }
@@ -41,6 +41,8 @@
     string state = "START";
     string status;
     List<string> ls = new();
+    int sendCount = 20;
+    int emulateDelay = 400;
 
     async Task Start()
     {
@@ -55,20 +57,19 @@
         }
     }
 
-    async IAsyncEnumerable<string> ClientStreamData()
+    async IAsyncEnumerable<WeatherForecast> ClientStreamData()
     {
         cancel = false;
-        for (var i = 0; i < 8; i++) {
+        for (var i = 0; i < sendCount; i++) {
             if (cancel) {
                 break;
             }
-            var s = $"Some data {i}";
-            ls.Add($"Sending -> {s}");
-            await Task.Delay(500);
-
+            var item = WeatherForecast.Create(i);
+            await Task.Delay(emulateDelay);
             // send to server
-            yield return s;
+            yield return item;
 
+            ls.Add($"Sending -> {item}");
             StateHasChanged();
         }
         status = cancel ? "Canceled" : "Completed";

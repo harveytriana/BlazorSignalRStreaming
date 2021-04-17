@@ -1,5 +1,6 @@
 ﻿@using Microsoft.AspNetCore.SignalR.Client
 @using System.Threading
+@using BlazorSignalRStreaming.Shared
 @page "/streaming-in"
 @inject NavigationManager NavigationManager
 @implements IAsyncDisposable
@@ -25,7 +26,7 @@
     </button>
 </div>
 <hr />
-<ul>
+<ul style="font-family:Consolas">
     @foreach (var i in ls) {
         <li>@i</li>
     }
@@ -41,6 +42,8 @@
     string state = "START";
     string status;
     List<string> ls = new();
+    int receiveCount = 20;
+    int emulateDelay = 400;
 
     async Task Start()
     {
@@ -56,9 +59,11 @@
 
     public async Task StartDownlodStream()
     {
-        // The correct syntax is:
-        await foreach (var count in connection.StreamAsync<int>("CounterEnumerable", 12, 333, cts.Token)) {
-            ls.Add($"Received {count}");
+        var remoteStream = connection.StreamAsync<WeatherForecast>("Send", receiveCount, emulateDelay, cts.Token);
+        //
+        await foreach (var i in remoteStream) {
+            ls.Add($"Received: {i}");
+            // do something with instance i...
             StateHasChanged();
         }
         status = "Completed";
