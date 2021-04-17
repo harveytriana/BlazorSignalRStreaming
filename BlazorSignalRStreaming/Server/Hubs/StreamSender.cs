@@ -30,7 +30,7 @@ namespace BlazorSignalRStreaming.Server.Hubs
             [EnumeratorCancellation]
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation($"Run IAsyncEnumerable<T> CounterEnumerable(count: {count})");
+            _logger.LogInformation($"Run IAsyncEnumerable<T> Send(count: {count})");
 
             for (int i = 1; i <= count; i++) {
                 if (cancellationToken.IsCancellationRequested) {
@@ -52,7 +52,7 @@ namespace BlazorSignalRStreaming.Server.Hubs
             int count,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation($"Run ChannelReader<iT> CounterChannel(count: {count})");
+            _logger.LogInformation($"Run ChannelReader<iT> SendChannel(count: {count})");
 
             var channel = Channel.CreateUnbounded<WeatherForecast>();
 
