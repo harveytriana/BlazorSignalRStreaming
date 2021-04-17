@@ -49,8 +49,8 @@ namespace BlazorSignalRStreaming.Server.Hubs
 
         // Second apprach. Return an IAsyncEnumerable<T> 
         public ChannelReader<WeatherForecast> SendChannel(
-                   int count,
-                   CancellationToken cancellationToken)
+            int count,
+            CancellationToken cancellationToken)
         {
             _logger.LogInformation($"Run ChannelReader<iT> CounterChannel(count: {count})");
 

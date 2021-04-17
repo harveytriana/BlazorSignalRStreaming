@@ -1,203 +1,420 @@
-﻿# Using the MessagePack Protocol in SignalR and Blazor Client
+﻿# Using SignalR Streaming in Blazor
 
-«MessagePack is a fast and compact binary serialization format. Ideal when performance and bandwidth are an issue because it creates smaller messages compared to JSON.» I will focus on showing how to enable the protocol in a Blazor application. As an example I take the classic `WeatherForecast` service, enable it to generate a simple SignalR service, and finally enable `MessagePack`. I use a Blazor application hosted on ASP.NET Core.
+---
 
-**The model**
+*Real-time data where partial are sent or received without waiting for a single transfer of the expected data.*
 
-`WeatherForecast` is extended to include a more elaborate object, `WeatherReport`.
+A certainly advanced feature that SignalR has is the transmission of point-to-point data in chunks, a strategy technically known as `Streaming`. This scenario is ideal when we are going to transfer a considerable volume of objects in real time, either from the server or from the client, and we do not want to wait until the entire task is finished to do something with the data.
+
+SignalR supports transfer from client to server and from server to client. There are two techniques, the first and oldest is using `ChannelReader`,  the second, born with C# 8, is asynchronous transmission from `Yield`. The second technique is more convenient and less complex to deal with, and it is the one I will discuss in this article. However, in the Git source, I leave the counterpart with `ChannelReader`. For the consumer it is the same to use one another, however, for the server the improvement in code that the asynchronous `Yield` gives us is notable.
+
+## The example
+
+The example refers to a Blazor application hosted on ASP.NET Core, named `BlazorSignalRStreaming`, which shows the two scenarios: (1) Outbound Streaming, (2) Inbound Streaming. As an object model I took the classic `WeatherForecast` with a slight modification as read here:
+
+*The model*
 
 ```csharp
-namespace BlazorMessagePack.Shared
+using System;
+
+namespace BlazorSignalRStreaming.Shared
 {
     public class WeatherForecast
     {
+        public int Id { get; set; }
         public DateTime Date { get; set; }
         public int TemperatureC { get; set; }
         public string Summary { get; set; }
         public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-    }
 
-    public class WeatherReport
-    {
-        public DateTime ReportDate { get; set; }
-        public IEnumerable<WeatherForecast> Forecasts { get; set; }
-    }
-}
-```
-
-**The Hub**
-
-A simple method, `GenerateReport`,  is added that delivers to SignalR clients a `WeatherReport` object with a discrete number of `WeatherForecast` records.
-
-```csharp
-using BlazorMessagePack.Shared;
-using Microsoft.AspNetCore.SignalR;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace BlazorMessagePack.Server.Hubs
-{
-    public class WeatherForecastHub : Hub
-    {
+        #region Random Instance
         static readonly string[] Summaries = new[]
         {
-            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
+            "Freezing", "Bracing", "Chilly", "Cool", "Mild",
+            "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
         };
+        static readonly Random random = new();
 
-        static readonly Random _random = new();
-
-        public async Task GenerateReport(int rows)
+        public static WeatherForecast Create(int id)
         {
-            var forecasts = Enumerable.Range(1, rows).Select(index => new WeatherForecast {
-                Date = DateTime.UtcNow.AddMinutes(index),
-                TemperatureC = _random.Next(-20, 55),
-                Summary = Summaries[_random.Next(Summaries.Length)]
-            });
-
-            var report = new WeatherReport {
-                ReportDate = DateTime.UtcNow,
-                Forecasts = forecasts
+            return new WeatherForecast {
+                Id = id,
+                Date = DateTime.Today.AddMinutes(random.Next(-10, 10)),
+                TemperatureC = random.Next(-20, 55),
+                Summary = Summaries[random.Next(Summaries.Length)]
             };
+        }
+        #endregion
 
-            await Clients.All.SendAsync("Report", report);
+        public override string ToString()
+        {
+            return $"{Id} {Date.ToShortDateString()} {TemperatureC:N2} {Summary}";
         }
     }
 }
 ```
 
-**The configuration**
+## Data transfer from Server to Client
 
-Add the `AddMessagePackProtocol()` directive to the SignalR service disposition. It is worth mentioning that we can still use JSON if the client wishes, since it remains with the two protocols available. Simplify the Startup class to highlight what is relevant to the topic discussed here.
+Case in which the client makes a request to the server for it to send it a list of objects of the same type, so that these objects enter one by one or in batches, and can be processed on the client as soon as they arrive. A practical example could be that we request data from a continuous graph and without waiting for the entire matrix to arrive, we show the corresponding information in the user interface. In this way, the impact on the transmission is light and effective, and the appropriate interface is available.
+
+The SignalR hub consists of a class that derives from `Hub`,  and contains a function that returns `IAsyncEnumerable<T>` asynchronous. From the example:
 
 ```csharp
-// ...
-namespace BlazorMessagePack.Server
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using BlazorSignalRStreaming.Shared;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
+
+namespace BlazorSignalRStreaming.Server.Hubs
 {
-    public class Startup
+    // SERVER-TO-CLIENT STREAMING
+    public class StreamSender : Hub
     {
-        // ...
-        public void ConfigureServices(IServiceCollection services)
+        readonly ILogger<StreamSender> _logger;
+        readonly int _delay = 300;
+
+        public StreamSender(ILogger<StreamSender> logger)
         {
-            // ...
-
-            #region SignalR
-            services.AddSignalR().AddMessagePackProtocol();
-
-            services.AddResponseCompression(opts =>
-            {
-                opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
-                    new[] { "application/octet-stream" });
-            });
-            #endregion
+            _logger = logger;
         }
 
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public async IAsyncEnumerable<WeatherForecast> Send(
+            int count,
+            [EnumeratorCancellation]
+            CancellationToken cancellationToken)
         {
-            p.UseEndpoints(endpoints => {
-                // ...
-                endpoints.MapHub<WeatherForecastHub>("/WeatherForecast");
-            });
+            _logger.LogInformation($"Run IAsyncEnumerable<T> CounterEnumerable(count: {count})");
+
+            for (int i = 1; i <= count; i++) {
+                if (cancellationToken.IsCancellationRequested) {
+                    break;
+                }
+                // send to client
+                yield return WeatherForecast.Create(i);
+
+                // simulation
+                await Task.Delay(_delay, cancellationToken);
+
+                _logger.LogInformation($"dispatched: {i}");
+            }
+            _logger.LogInformation($"End of stream");
         }
     }
 }
 ```
 
-**The client**
+> The forced wait with the `delay` variable is simply for illustration of behavior.
 
-Basically we enhance the connection constructs the `AddMessagePackProtocol()` directive
+**The Client**
 
-*Requires that we install Microsoft.AspNetCore.SignalR.Protocols.MessagePack*
+The Blazor client must contain a reference to `Microsoft.AspNetCore.SignalR.Client`. A component that requests the SignalR transmission needs a code like the following,
+
+*Blazor StreamIn Component*
 
 ```csharp
-@page "/fetchdata"
-@using BlazorMessagePack.Shared
 @using Microsoft.AspNetCore.SignalR.Client
-@using Microsoft.Extensions.DependencyInjection
+@using System.Threading
+@using BlazorSignalRStreaming.Shared
+@page "/streaming-in"
 @inject NavigationManager NavigationManager
 @implements IAsyncDisposable
 
-<h1>Weather forecast</h1>
+<h3><i class="oi oi-cloud-download"></i> SignalR Streaming In</h3>
 <hr />
-<p>This component demonstrates fetching data from the server.</p>
-<p>
-    <button class="btn btn-primary"
-            disabled="@disconnected"
-            @onclick="GenerateReport">
-        Generate Report
-    </button>
-</p>
+<h5>
+    The client receives a stream of the Server.
+</h5>
 <br />
-@if (forecasts != null) {
-    <h4>Report: @reportDate.ToShortDateString()  @reportDate.ToLongTimeString()</h4>
-    <table class="table table-sm" style="font-family:Courier New, Courier, monospace">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Temp. (C)</th>
-                <th>Temp. (F)</th>
-                <th>Summary</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var forecast in forecasts) {
-                <tr>
-                    <td>@forecast.Date.ToLocalTime().ToShortTimeString()</td>
-                    <td>@forecast.TemperatureC</td>
-                    <td>@forecast.TemperatureF</td>
-                    <td>@forecast.Summary</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-    <hr />
-    <p>Records: @forecasts.Length</p>
-}
+<div>
+    <button class="btn btn-primary"
+            style="width:130px;"
+            disabled="@(state=="CANCEL")"
+            @onclick="Start">
+        Start
+    </button>
+    <button class="btn btn-danger"
+            style="width:130px;"
+            disabled="@(state=="START")"
+            @onclick="Cancel">
+        Cancel
+    </button>
+</div>
+<hr />
+<ul style="font-family:Consolas">
+    @foreach (var i in ls) {
+        <li>@i</li>
+    }
+</ul>
+<p>
+    @status
+</p>
 
-@code {
-    WeatherForecast[] forecasts;
-    DateTime reportDate;
-    HubConnection hubConnection;
-    bool disconnected = true;
+@code{
+    HubConnection connection;
+    CancellationTokenSource cts;
+    bool connected;
+    string state = "START";
+    string status;
+    List<string> ls = new();
+    int n = 20;
 
-    protected override async Task OnInitializedAsync()
+    async Task Start()
     {
-        try {
-            hubConnection = new HubConnectionBuilder()
-               .WithUrl(NavigationManager.ToAbsoluteUri("/WeatherForecast"))
-               .AddMessagePackProtocol()
-               .Build();
-            await hubConnection.StartAsync();
+        state = "CANCEL";
+        status = "";
+        ls.Clear();
 
-            disconnected = hubConnection.State == HubConnectionState.Disconnected;
+        await ConnectAsync();
+        if (connected) {
+            await StartDownlodStream();
         }
-        catch (Exception e) {
-            Console.WriteLine("Exception: {0}", e.Message);
-        }
-
-        hubConnection.On<WeatherReport>("Report", (weatherReport) => {
-            reportDate = weatherReport.ReportDate.ToLocalTime();
-            forecasts = weatherReport.Forecasts.ToArray();
-            StateHasChanged();
-        });
     }
 
-    async Task GenerateReport()
+    public async Task StartDownlodStream()
     {
-        await hubConnection.SendAsync("GenerateReport", 50);
+        var remoteStream = connection.StreamAsync<WeatherForecast>("Send", n, cts.Token);
+        //
+        await foreach (var i in remoteStream) {
+            ls.Add($"Received: {i}");
+            // do something with instance i...
+            StateHasChanged();
+        }
+        status = "Completed";
+        state = "START";
+        await DisposeAsync();
+    }
+
+    async Task Cancel()
+    {
+        cts.CancelAfter(300);
+        status = "Canceled.";
+        state = "START";
+        await Task.Delay(300);
+    }
+
+    async Task ConnectAsync()
+    {
+        connected = false;
+
+        var hubUrl = NavigationManager.ToAbsoluteUri("/StreamSender").ToString();
+        try {
+            connection = new HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .Build();
+
+            cts = new CancellationTokenSource();
+
+            await connection.StartAsync(cts.Token);
+
+            connected = true;
+        }
+        catch (Exception exception) {
+            status = $"Exception: {exception.Message}";
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
-        await hubConnection.DisposeAsync();
+        if (connected) {
+            await connection.StopAsync();
+            await connection.DisposeAsync();
+            connected = false;
+        }
     }
 }
 ```
 
-> As an additional and important detail, keep in mind the way in which I manage the server time and the transformation to local time on the client.
+In this component add a small state protocol with two values: START and CANCEL.
 
-NOTE. *The efficiency of MesagePack is remarkable since it is a transmission in binary format. However, it becomes noticeable when the message is "big", or in a continuous sending of data in real time. See https://msgpack.org/ for more information.*
+> To cancel, if necessary, we use a `CancellationTokenSource` object, with which we can generate an interruption by invoking the `CancelAfter (300) ` method (300 ms is arbitration), or jus t`Cancel ()`.
+
+## Data transmission from Client to Server
+
+Case in which you want the client to send the server a list of objects of the same type, so that these objects are sent one by one or in batches. In practical example it could be that the user loads a file of considerable volume. In this way, the impact on the transmission is light and effective.
+
+The SignalR hub consists of a class that derives from `Hub`,  and one of its asynchronous methods contains a `IAsyncEnumerable parameter<T>`. Let's see the example:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using BlazorSignalRStreaming.Shared;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
+
+namespace BlazorSignalRStreaming.Server.Hubs
+{
+    // CLIENT-TO-SERVER STREAMING
+    public class StreamReceiver : Hub
+    {
+        private readonly ILogger<StreamReceiver> _logger;
+
+        public StreamReceiver(ILogger<StreamReceiver> logger)
+        {
+            _logger = logger;
+        }
+
+        // First apporach. IAsyncEnumerable<T>
+        public async Task UploadStream(IAsyncEnumerable<WeatherForecast> clientStream)
+        {
+            _logger.LogInformation($"UploadStream(IAsyncEnumerable stream: {clientStream})", true);
+
+            await foreach (var item in clientStream) {
+                // do something with the incomming item...
+                _logger.LogInformation($"From client: {item}");
+            }
+        }
+    }
+}
+```
+
+> For illustration, I added a message log to see what happens on the server.
+
+**The Client**
+
+The Blazor client, with a reference to `Microsoft.AspNetCore.SignalR.Client`. A component that sends the stream needs a code like the following,
+
+*Blazor StreamOut Component*
+
+```csharp
+@using BlazorSignalRStreaming.Shared
+@using Microsoft.AspNetCore.SignalR.Client
+@page "/streaming-out"
+@inject NavigationManager NavigationManager
+@implements IAsyncDisposable
+
+<h3><i class="oi oi-cloud-upload"></i> SignalR Streaming Out</h3>
+<hr />
+<h5>
+    The Clint send a stream to Server
+</h5>
+<br />
+<div>
+    <button class="btn btn-primary"
+            style="width:130px;"
+            disabled="@(state=="CANCEL")"
+            @onclick="Start">
+        Start
+    </button>
+    <button class="btn btn-danger"
+            style="width:130px;"
+            disabled="@(state=="START")"
+            @onclick="Cancel">
+        Cancel
+    </button>
+</div>
+<hr />
+<ul style="font-family:Consolas">
+    @foreach (var i in ls) {
+        <li>@i</li>
+    }
+</ul>
+<p>
+    @status
+</p>
+
+@code{
+    HubConnection connection;
+    bool connected;
+    bool cancel;
+    string state = "START";
+    string status;
+    List<string> ls = new();
+    int sendCount = 20;
+    int delay = 300;
+
+    async Task Start()
+    {
+        state = "CANCEL";
+        status = "";
+        cancel = false;
+        ls.Clear();
+
+        await ConnectAsync();
+        if (connected) {
+            await connection.SendAsync("UploadStream", ClientStreamData());
+        }
+    }
+
+    async IAsyncEnumerable<WeatherForecast> ClientStreamData()
+    {
+        cancel = false;
+        for (var i = 1; i <= sendCount; i++) {
+            if (cancel) {
+                break;
+            }
+            var item = WeatherForecast.Create(i);
+            // send to server
+            yield return item;
+
+            ls.Add($"Sending -> {item}");
+            StateHasChanged();
+
+            // by illustration
+            await Task.Delay(delay);
+        }
+        status = cancel ? "Canceled" : "Completed";
+        state = "START";
+        StateHasChanged();
+    }
+
+    void Cancel() => cancel = true;
+
+    async Task ConnectAsync()
+    {
+        if (connected) {
+            return;
+        }
+        var hubUrl = NavigationManager.ToAbsoluteUri("/StreamReceiver").ToString();
+        try {
+            connection = new HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .Build();
+
+            await connection.StartAsync();
+
+            connected = true;
+        }
+        catch (Exception exception) {
+            status = $"Exception: {exception.Message}";
+            connected = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (connected) {
+            await connection.StopAsync();
+            await connection.DisposeAsync();
+            connected = false;
+        }
+    }
+}
+```
+
+In this component add a small state protocol with two values: START and CANCEL.
+
+> In this case, the client has control of its code and only a boolean will suffice, which by changing its value will break the data sending click.
+
+> The forced wait with the `delay` variable is simply for illustration of behavior.
+
+## Conclusions
+
+In the Blazor world everything that concerns SignalR, by virtue of being the same paradigm, that is C #, is native, clean and solid. Applications that were then complex on the client side with JavaScript as far as the subject matter here is concerned are made easy to improve and debug. With Blazor we have the possibility to go further.
 
 ---
 
-By: [Blazor Spread](https://www.blazorspread.net) - Harvey Triana
+This article is part of the BlazorSpread Blog »» [Go to Blog](https://www.blazorspread.net/blogview/using-signalr-streaming-in-blazor).
+
+Official Documentation: [Use streaming in ASP.NET Core SignalR](https://docs.microsoft.com/en-us/aspnet/core/signalr/streaming).
+
+---
+
+`MIT license. Author: Harvey Triana. Contact: admin @ blazorspread.net`
