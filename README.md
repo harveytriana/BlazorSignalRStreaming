@@ -405,7 +405,7 @@ In this component add a small state protocol with two values: START and CANCEL.
 
 ## Conclusions
 
-In the Blazor world everything that concerns SignalR, by virtue of being the same paradigm, that is C #, is native, clean and solid. Applications that were then complex on the client side with JavaScript as far as the subject matter here is concerned are made easy to improve and debug. With Blazor we have the possibility to go further.
+In the Blazor world everything that concerns SignalR, by virtue of being the same paradigm, that is C#, is native, clean and solid. Applications that were then complex on the client side with JavaScript as far as the subject matter here is concerned are made easy to improve and debug. With Blazor we have the possibility to go further.
 
 ---
 
