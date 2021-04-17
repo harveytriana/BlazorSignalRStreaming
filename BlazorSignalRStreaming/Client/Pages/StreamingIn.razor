@@ -72,7 +72,7 @@
 
     async Task Cancel()
     {
-        cts.Cancel();
+        cts.CancelAfter(300);
         status = "Canceled.";
         state = "START";
         await Task.Delay(300);
@@ -104,7 +104,6 @@
         if (connected) {
             await connection.StopAsync();
             await connection.DisposeAsync();
-            await Task.Delay(300);
             connected = false;
         }
     }
