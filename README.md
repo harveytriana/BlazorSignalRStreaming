@@ -415,4 +415,4 @@ Official Documentation: [Use streaming in ASP.NET Core SignalR](https://docs.mic
 
 ---
 
-`MIT license. Author: Harvey Triana. Contact: admin @ blazorspread.net`
+`MIT license. Author: Harvey Triana. Contact: admin@blazorspread.net`
