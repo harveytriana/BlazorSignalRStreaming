@@ -1,7 +1,5 @@
 ﻿# Using SignalR Streaming in Blazor
 
----
-
 *Real-time data where partial are sent or received without waiting for a single transfer of the expected data.*
 
 A certainly advanced feature that SignalR has is the transmission of point-to-point data in chunks, a strategy technically known as `Streaming`. This scenario is ideal when we are going to transfer a considerable volume of objects in real time, either from the server or from the client, and we do not want to wait until the entire task is finished to do something with the data.
@@ -238,7 +236,7 @@ In this component add a small state protocol with two values: START and CANCEL.
 
 Case in which you want the client to send the server a list of objects of the same type, so that these objects are sent one by one or in batches. In practical example it could be that the user loads a file of considerable volume. In this way, the impact on the transmission is light and effective.
 
-The SignalR hub consists of a class that derives from `Hub`,  and one of its asynchronous methods contains a `IAsyncEnumerable parameter<T>`. Let's see the example:
+The SignalR hub consists of a class that derives from `Hub`,  and one of its asynchronous methods contains a `IAsyncEnumerable<T>`. Let's see the example:
 
 ```csharp
 using System;
