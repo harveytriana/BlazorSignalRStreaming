@@ -42,7 +42,7 @@
     string status;
     List<string> ls = new();
     int sendCount = 20;
-    int emulateDelay = 400;
+    int delay = 300;
 
     async Task Start()
     {
@@ -60,34 +60,32 @@
     async IAsyncEnumerable<WeatherForecast> ClientStreamData()
     {
         cancel = false;
-        for (var i = 0; i < sendCount; i++) {
+        for (var i = 1; i <= sendCount; i++) {
             if (cancel) {
                 break;
             }
             var item = WeatherForecast.Create(i);
-            await Task.Delay(emulateDelay);
             // send to server
             yield return item;
 
             ls.Add($"Sending -> {item}");
             StateHasChanged();
+
+            // by illustration
+            await Task.Delay(delay);
         }
         status = cancel ? "Canceled" : "Completed";
         state = "START";
         StateHasChanged();
     }
 
-    void Cancel()
-    {
-        cancel = true;
-    }
+    void Cancel() => cancel = true;
 
     async Task ConnectAsync()
     {
         if (connected) {
             return;
         }
-
         var hubUrl = NavigationManager.ToAbsoluteUri("/StreamReceiver").ToString();
         try {
             connection = new HubConnectionBuilder()
@@ -109,7 +107,6 @@
         if (connected) {
             await connection.StopAsync();
             await connection.DisposeAsync();
-            await Task.Delay(300);
             connected = false;
         }
     }

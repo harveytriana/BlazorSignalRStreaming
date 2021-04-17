@@ -16,7 +16,8 @@ namespace BlazorSignalRStreaming.Server.Hubs
     // SERVER-TO-CLIENT STREAMING
     public class StreamSender : Hub
     {
-        private readonly ILogger<StreamSender> _logger;
+        readonly ILogger<StreamSender> _logger;
+        readonly int _delay = 300;
 
         public StreamSender(ILogger<StreamSender> logger)
         {
@@ -26,32 +27,32 @@ namespace BlazorSignalRStreaming.Server.Hubs
         // First apprach. Return an IAsyncEnumerable<T> 
         public async IAsyncEnumerable<WeatherForecast> Send(
             int count,
-            int delay,
             [EnumeratorCancellation]
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation($"Run IAsyncEnumerable<T> CounterEnumerable(count: {count}, delay: {delay})");
+            _logger.LogInformation($"Run IAsyncEnumerable<T> CounterEnumerable(count: {count})");
 
-            for (int i = 0; i < count; i++) {
-                // Check the cancellation token regularly so that the server will stop
-                // producing items if the client disconnects.
-                cancellationToken.ThrowIfCancellationRequested();
+            for (int i = 1; i <= count; i++) {
+                if (cancellationToken.IsCancellationRequested) {
+                    break;
+                }
+                // send to client
+                yield return WeatherForecast.Create(i); 
 
-                yield return WeatherForecast.Create(i); // T instance;
+                // simulation
+                await Task.Delay(_delay, cancellationToken);
 
-                // Use the cancellationToken in other APIs that accept cancellation
-                // tokens so the cancellation can flow down to them.
-                await Task.Delay(delay, cancellationToken);
+                _logger.LogInformation($"dispatched: {i}");
             }
+            _logger.LogInformation($"End of stream");
         }
 
         // Second apprach. Return an IAsyncEnumerable<T> 
         public ChannelReader<WeatherForecast> SendChannel(
                    int count,
-                   int delay,
                    CancellationToken cancellationToken)
         {
-            _logger.LogInformation($"Run ChannelReader<iT> CounterChannel(count: {count}, delay: {delay})");
+            _logger.LogInformation($"Run ChannelReader<iT> CounterChannel(count: {count})");
 
             var channel = Channel.CreateUnbounded<WeatherForecast>();
 
@@ -72,7 +73,8 @@ namespace BlazorSignalRStreaming.Server.Hubs
                         // ChannelWriter sends data to the client
                         await channel.Writer.WriteAsync(WeatherForecast.Create(i), cancellationToken);
 
-                        await Task.Delay(delay, cancellationToken);
+                        // simulation
+                        await Task.Delay(_delay, cancellationToken);
                     }
                     channel.Writer.Complete();
                 }

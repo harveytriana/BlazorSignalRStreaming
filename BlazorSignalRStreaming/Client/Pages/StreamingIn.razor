@@ -42,8 +42,7 @@
     string state = "START";
     string status;
     List<string> ls = new();
-    int receiveCount = 20;
-    int emulateDelay = 400;
+    int n = 20;
 
     async Task Start()
     {
@@ -59,7 +58,7 @@
 
     public async Task StartDownlodStream()
     {
-        var remoteStream = connection.StreamAsync<WeatherForecast>("Send", receiveCount, emulateDelay, cts.Token);
+        var remoteStream = connection.StreamAsync<WeatherForecast>("Send", n, cts.Token);
         //
         await foreach (var i in remoteStream) {
             ls.Add($"Received: {i}");
@@ -76,7 +75,7 @@
         cts.Cancel();
         status = "Canceled.";
         state = "START";
-        await DisposeAsync();
+        await Task.Delay(300);
     }
 
     async Task ConnectAsync()
