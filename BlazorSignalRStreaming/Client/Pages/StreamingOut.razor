@@ -51,7 +51,7 @@
 
         await ConnectAsync();
         if (connected) {
-            await connection.SendAsync("UploadStreamEnumerable", ClientStreamData());
+            await connection.SendAsync("UploadStream", ClientStreamData());
         }
     }
 

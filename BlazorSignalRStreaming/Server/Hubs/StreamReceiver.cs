@@ -21,9 +21,9 @@ namespace BlazorSignalRStreaming.Server.Hubs
         }
 
         // First apporach. IAsyncEnumerable<T>
-        public async Task UploadStreamEnumerable(IAsyncEnumerable<string> stream)
+        public async Task UploadStream(IAsyncEnumerable<string> stream)
         {
-            _logger.LogInformation($"UploadStreamEnumerable(IAsyncEnumerable stream: {stream})", true);
+            _logger.LogInformation($"UploadStream(IAsyncEnumerable stream: {stream})", true);
 
             await foreach (var item in stream) {
                 // do something with the stream item
