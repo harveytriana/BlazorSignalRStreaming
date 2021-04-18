@@ -56,7 +56,7 @@ namespace BlazorSignalRStreaming.Shared
 
 Case in which the client makes a request to the server for it to send it a list of objects of the same type, so that these objects enter one by one or in batches, and can be processed on the client as soon as they arrive. A practical example could be that we request data from a continuous graph and without waiting for the entire matrix to arrive, we show the corresponding information in the user interface. In this way, the impact on the transmission is light and effective, and the appropriate interface is available.
 
-The SignalR hub consists of a class that derives from `Hub`,  and contains a function that returns `IAsyncEnumerable<T>` asynchronous. From the example:
+The SignalR hub consists of a class that derives from `Hub`, and contains a function that returns `IAsyncEnumerable<T>` asynchronous. From the example:
 
 ```csharp
 using System;
@@ -87,7 +87,7 @@ namespace BlazorSignalRStreaming.Server.Hubs
             [EnumeratorCancellation]
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation($"Run IAsyncEnumerable<T> CounterEnumerable(count: {count})");
+            _logger.LogInformation($"Run IAsyncEnumerable<T> Send(count: {count})");
 
             for (int i = 1; i <= count; i++) {
                 if (cancellationToken.IsCancellationRequested) {
@@ -230,13 +230,13 @@ The Blazor client must contain a reference to `Microsoft.AspNetCore.SignalR.Clie
 
 In this component add a small state protocol with two values: START and CANCEL.
 
-> To cancel, if necessary, we use a `CancellationTokenSource` object, with which we can generate an interruption by invoking the `CancelAfter (300) ` method (300 ms is arbitration), or jus t`Cancel ()`.
+> To cancel, if necessary, we use a `CancellationTokenSource` object, with which we can generate an interruption by invoking the `CancelAfter(300)` method (300 ms is arbitration), or just use `Cancel()`.
 
 ## Data transmission from Client to Server
 
 Case in which you want the client to send the server a list of objects of the same type, so that these objects are sent one by one or in batches. In practical example it could be that the user loads a file of considerable volume. In this way, the impact on the transmission is light and effective.
 
-The SignalR hub consists of a class that derives from `Hub`,  and one of its asynchronous methods contains a `IAsyncEnumerable<T>`. Let's see the example:
+The SignalR hub consists of a class that derives from `Hub`, and one of its asynchronous methods contains a `IAsyncEnumerable<T>`. Let's see the example:
 
 ```csharp
 using System;
@@ -402,6 +402,10 @@ In this component add a small state protocol with two values: START and CANCEL.
 > In this case, the client has control of its code and only a boolean will suffice, which by changing its value will break the data sending click.
 
 > The forced wait with the `delay` variable is simply for illustration of behavior.
+
+### Remark
+
+> *In Blazor we can program that the state is preserved on page change, in which case, a user could initiate a data transfer, change pages, and when returning to the same page, the process has continued. In the post I did not add that feature so as not to make the example more complex. The way to do it is to use static connections, some other variables, and at the top of the page to check if a process was started.*
 
 ## Conclusions
 
